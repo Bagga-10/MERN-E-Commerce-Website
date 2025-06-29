@@ -4,14 +4,6 @@ import cloudinary from "../config/cloudinary.js";
 
 const addProduct = asyncHandler(async (req, res) => {
   try {
-    console.log("=== PRODUCT CREATION START ===");
-    console.log("Environment check:", {
-      hasCloudinary: !!process.env.CLOUDINARY_CLOUD_NAME,
-      hasMongo: !!process.env.MONGO_URI,
-      hasJWT: !!process.env.JWT_SECRET,
-      nodeEnv: process.env.NODE_ENV
-    });
-    
     const { name, description, price, category, quantity, brand } = req.body;
 
     //Validation
@@ -29,53 +21,15 @@ const addProduct = asyncHandler(async (req, res) => {
       case !brand:
         return res.status(400).json({ error: "Brand is required" });
       case !req.file:
-        console.log("File validation failed - no file uploaded");
         return res.status(400).json({ error: "Image is required" });
     }
 
-    console.log("Validation passed, creating product...");
-
-    const productData = {
-      name,
-      description,
-      price: Number(price),
-      category,
-      quantity: Number(quantity),
-      brand,
-      image: req.file.path, // Cloudinary URL
-      countInStock: Number(quantity),
-    };
-
-    const product = new Product(productData);
-
-    const createdProduct = await product.save();
-    console.log("Product created successfully");
-    res.status(201).json(createdProduct);
+    const product = new Product({ ...req.body, image: req.file.path });
+    await product.save();
+    res.status(201).json(product);
   } catch (error) {
-    console.error("=== PRODUCT CREATION ERROR ===");
-    console.error("Error type:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-
-    // Check for specific error types
-    if (error.name === "ValidationError") {
-      return res.status(400).json({
-        error: "Validation Error",
-        details: Object.keys(error.errors).map((key) => ({
-          field: key,
-          message: error.errors[key].message,
-        })),
-      });
-    }
-
-    if (error.code === 11000) {
-      return res.status(400).json({ error: "Duplicate entry" });
-    }
-
-    res.status(500).json({
-      error: "Internal server error",
-      message: error.message,
-    });
+    console.error(error);
+    res.status(400).json(error.message);
   }
 });
 
@@ -99,60 +53,13 @@ const updateProdctDetails = asyncHandler(async (req, res) => {
         return res.json({ error: "Brand is required" });
     }
 
-    // Find the existing product
-    const existingProduct = await Product.findById(req.params.id);
-    if (!existingProduct) {
-      return res.status(404).json({ error: "Product not found" });
-    }
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body },
+      { new: true }
+    );
 
-    const updateData = {
-      name,
-      description,
-      price,
-      category,
-      quantity,
-      brand,
-      countInStock: quantity,
-    };
-
-    if (req.file) {
-      if (existingProduct.image) {
-        try {
-          // Extract public_id from Cloudinary URL
-          const urlParts = existingProduct.image.split("/");
-          console.log("Update - Full URL parts:", urlParts);
-
-          // Find the upload index and extract everything after it
-          const uploadIndex = urlParts.findIndex((part) => part === "upload");
-          if (uploadIndex === -1) {
-            throw new Error("Invalid Cloudinary URL format");
-          }
-
-          // Skip version number if present (starts with 'v' followed by numbers)
-          let startIndex = uploadIndex + 1;
-          if (urlParts[startIndex] && /^v\d+$/.test(urlParts[startIndex])) {
-            startIndex++;
-          }
-
-          // Get all parts from folder to filename and remove extension
-          const pathParts = urlParts.slice(startIndex);
-          const fullPath = pathParts.join("/");
-          const publicId = fullPath.replace(/\.[^/.]+$/, ""); // Remove extension
-
-          console.log("Update - Deleting old product image:", publicId);
-          const result = await cloudinary.uploader.destroy(publicId);
-          console.log("Old image deletion result:", result);
-        } catch (cloudinaryError) {
-          console.error("Error deleting old image:", cloudinaryError.message);
-        }
-      }
-
-      updateData.image = req.file.path;
-    }
-
-    const product = await Product.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-    });
+    await product.save();
 
     res.json(product);
   } catch (error) {
@@ -163,73 +70,10 @@ const updateProdctDetails = asyncHandler(async (req, res) => {
 
 const removeProduct = asyncHandler(async (req, res) => {
   try {
-    // First find the product to get image info
-    const product = await Product.findById(req.params.id);
-
-    if (!product) {
-      return res.status(404).json({ error: "Product not found" });
-    }
-
-    // Extract public_id from Cloudinary URL to delete the image
-    if (product.image) {
-      try {
-        // Extract public_id from Cloudinary URL
-        // URL format: https://res.cloudinary.com/cloud_name/image/upload/v1234567890/Bagga-Store/bagga_uploads/image-timestamp.jpg
-        const urlParts = product.image.split("/");
-        console.log("Full URL parts:", urlParts);
-
-        // Find the upload index and extract everything after it
-        const uploadIndex = urlParts.findIndex((part) => part === "upload");
-        if (uploadIndex === -1) {
-          throw new Error("Invalid Cloudinary URL format");
-        }
-
-        // Skip version number if present (starts with 'v' followed by numbers)
-        let startIndex = uploadIndex + 1;
-        if (urlParts[startIndex] && /^v\d+$/.test(urlParts[startIndex])) {
-          startIndex++;
-        }
-
-        // Get all parts from folder to filename and remove extension
-        const pathParts = urlParts.slice(startIndex);
-        const fullPath = pathParts.join("/");
-        const publicId = fullPath.replace(/\.[^/.]+$/, ""); // Remove extension
-
-        console.log("Extracted public_id:", publicId);
-
-        // Delete image from Cloudinary
-        const result = await cloudinary.uploader.destroy(publicId);
-        console.log("Cloudinary deletion result:", result);
-
-        if (result.result === "ok") {
-          console.log("✅ Image deleted from Cloudinary successfully");
-        } else {
-          console.log(
-            "⚠️ Image might not exist in Cloudinary or already deleted"
-          );
-        }
-      } catch (cloudinaryError) {
-        console.error(
-          "❌ Error deleting image from Cloudinary:",
-          cloudinaryError.message
-        );
-        // Continue with product deletion even if image deletion fails
-      }
-    }
-
-    // Delete the product from database
-    await Product.findByIdAndDelete(req.params.id);
-
-    console.log("✅ Product deleted successfully");
-    res.status(200).json({
-      message: "Product deleted successfully",
-      deletedProduct: {
-        id: product._id,
-        name: product.name,
-      },
-    });
+    const product = await Product.findByIdAndDelete(req.params.id);
+    res.json(product);
   } catch (error) {
-    console.error("❌ Error deleting product:", error);
+    console.error(error);
     res.status(500).json({ error: "Server error" });
   }
 });
