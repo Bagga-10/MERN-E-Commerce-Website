@@ -4,6 +4,14 @@ import cloudinary from "../config/cloudinary.js";
 
 const addProduct = asyncHandler(async (req, res) => {
   try {
+    console.log("=== PRODUCT CREATION START ===");
+    console.log("Environment check:", {
+      hasCloudinary: !!process.env.CLOUDINARY_CLOUD_NAME,
+      hasMongo: !!process.env.MONGO_URI,
+      hasJWT: !!process.env.JWT_SECRET,
+      nodeEnv: process.env.NODE_ENV
+    });
+    
     const { name, description, price, category, quantity, brand } = req.body;
 
     //Validation
@@ -21,8 +29,11 @@ const addProduct = asyncHandler(async (req, res) => {
       case !brand:
         return res.status(400).json({ error: "Brand is required" });
       case !req.file:
+        console.log("File validation failed - no file uploaded");
         return res.status(400).json({ error: "Image is required" });
     }
+
+    console.log("Validation passed, creating product...");
 
     const productData = {
       name,
@@ -38,9 +49,13 @@ const addProduct = asyncHandler(async (req, res) => {
     const product = new Product(productData);
 
     const createdProduct = await product.save();
+    console.log("Product created successfully");
     res.status(201).json(createdProduct);
   } catch (error) {
-    console.error("Error in addProduct:", error.message);
+    console.error("=== PRODUCT CREATION ERROR ===");
+    console.error("Error type:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
 
     // Check for specific error types
     if (error.name === "ValidationError") {
