@@ -6,30 +6,31 @@ const addProduct = asyncHandler(async (req, res) => {
   try {
     const { name, description, price, category, quantity, brand } = req.body;
 
-    //Validation
+    // Validation
     switch (true) {
       case !name:
         return res.status(400).json({ error: "Name is required" });
-      case !description:
-        return res.status(400).json({ error: "Description is required" });
-      case !price:
-        return res.status(400).json({ error: "Price is required" });
-      case !category:
-        return res.status(400).json({ error: "Category is required" });
-      case !quantity:
-        return res.status(400).json({ error: "Quantity is required" });
-      case !brand:
-        return res.status(400).json({ error: "Brand is required" });
       case !req.file:
         return res.status(400).json({ error: "Image is required" });
+      case !brand:
+        return res.status(400).json({ error: "Brand is required" });
+      case !quantity:
+        return res.status(400).json({ error: "Quantity is required" });
+      case !price:
+        return res.status(400).json({ error: "Price is required" });
+      case !description:
+        return res.status(400).json({ error: "Description is required" });
+      case !category:
+        return res.status(400).json({ error: "Category is required" });
     }
 
     const product = new Product({ ...req.body, image: req.file.path });
+
     await product.save();
     res.status(201).json(product);
   } catch (error) {
-    console.error(error);
-    res.status(400).json(error.message);
+    console.error("ADD PRODUCT ERROR:", error);
+    res.status(500).json({ error: "Server Error", details: error.message });
   }
 });
 
