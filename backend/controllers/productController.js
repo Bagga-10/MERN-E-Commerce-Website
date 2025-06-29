@@ -23,6 +23,7 @@ const addProduct = asyncHandler(async (req, res) => {
       case !req.file:
         return res.status(400).json({ error: "Image is required" });
     }
+
     const productData = {
       name,
       description,
@@ -39,12 +40,10 @@ const addProduct = asyncHandler(async (req, res) => {
     const createdProduct = await product.save();
     res.status(201).json(createdProduct);
   } catch (error) {
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
+    console.error("Error in addProduct:", error.message);
 
     // Check for specific error types
     if (error.name === "ValidationError") {
-      console.error("Mongoose validation errors:", error.errors);
       return res.status(400).json({
         error: "Validation Error",
         details: Object.keys(error.errors).map((key) => ({
@@ -55,11 +54,13 @@ const addProduct = asyncHandler(async (req, res) => {
     }
 
     if (error.code === 11000) {
-      console.error("Duplicate key error:", error.keyValue);
       return res.status(400).json({ error: "Duplicate entry" });
     }
 
-    res.status(400).json({ error: error.message });
+    res.status(500).json({
+      error: "Internal server error",
+      message: error.message,
+    });
   }
 });
 
@@ -131,7 +132,7 @@ const updateProdctDetails = asyncHandler(async (req, res) => {
         }
       }
 
-      updateData.image = req.file.path; 
+      updateData.image = req.file.path;
     }
 
     const product = await Product.findByIdAndUpdate(req.params.id, updateData, {
