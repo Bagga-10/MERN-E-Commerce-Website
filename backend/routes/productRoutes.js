@@ -19,9 +19,21 @@ import {
 import { authenticate, authorizeAdmin } from "../middlewares/authMiddleware.js";
 import checkId from "../middlewares/checkId.js";
 
+// Middleware for logging
+const logMiddleware = (req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.path}`);
+  next();
+};
+
 router
   .route("/")
-  .post(authenticate, authorizeAdmin, upload.single("image"), addProduct)
+  .post(
+    authenticate,
+    authorizeAdmin,
+    logMiddleware, // Added for debugging
+    upload.single("image"),
+    addProduct
+  )
   .get(fetchProducts);
 
 router.route("/allproducts").get(fetchAllProducts);
